@@ -11,7 +11,15 @@ Aplikasi (`miru-backend-api`, `miru-web-admin`, `mirumobileapp`) **tidak** disim
 | `staging/` | `/opt/miru-staging` | Compose staging + nginx |
 | `production/` | `/opt/miru-prod` | Compose production + nginx |
 
-File `.env` dan `certs/` **tidak** di-repo — tetap di VPS.
+File `.env` dan `certs/` **tidak** di-repo — tetap di VPS (`/opt/miru-staging/.env`, `/opt/miru-staging/certs/`).
+
+Clone repo di VPS (user `developer`):
+
+```bash
+git clone https://github.com/Webekspres/miru-infra.git ~/miru-infra
+cd ~/miru-infra && git checkout staging
+bash scripts/sync-staging.sh   # copy compose+nginx → /opt/miru-staging && docker compose up -d
+```
 
 ## Staging
 

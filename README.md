@@ -2,34 +2,71 @@
 
 Infrastruktur deploy VPS untuk MIRU Bank Sampah.
 
-## Layout VPS (`/opt`)
+## Layout VPS (`/opt`) — setelah rapi
 
 ```
 /opt/
-├── miru-infra/      ← git clone repo ini (sumber compose + nginx)
-├── miru-staging/    ← runtime staging (.env, certs, docker aktif)
-└── miru-prod/       ← runtime production (nanti)
+├── miru-infra/                 ← git clone (SATU-SATUNYA sumber compose/nginx)
+│   ├── staging/
+│   │   ├── docker-compose.yml  ← template staging
+│   │   ├── nginx.conf
+│   │   └── env.example
+│   ├── production/
+│   └── scripts/
+│       ├── sync-staging.sh     ← copy template → runtime
+│       ├── sync-production.sh
+│       ├── install-opt-layout.sh
+│       └── cleanup-vps.sh      ← hapus legacy, rapikan VPS
+│
+├── miru-staging/               ← runtime staging (docker compose dijalankan DI SINI)
+│   ├── docker-compose.yml      ← disalin dari miru-infra/staging/
+│   ├── nginx.conf
+│   ├── .env                    ← secrets (tidak di git)
+│   └── certs/                  ← TLS (tidak di git)
+│
+└── miru-prod/                  ← runtime production (nanti)
+    ├── .env
+    └── certs/
 ```
 
-| Folder | Isi | Di git? |
-|--------|-----|---------|
-| `/opt/miru-infra` | Repo infra, scripts | ✅ clone GitHub |
-| `/opt/miru-staging` | `.env`, `certs/`, compose aktif | ❌ secrets lokal |
-| `admin/`, `backend/` di staging | Legacy rsync | ❌ tidak dipakai compose |
+### Kenapa compose ada di dua tempat?
 
-## Migrasi `~/miru-infra` → `/opt/miru-infra`
+| Lokasi | Peran |
+|--------|-------|
+| `miru-infra/staging/` | **Template** di git — diedit developer, di-deploy via CI |
+| `miru-staging/` | **Runtime** — disalin otomatis + `.env`/`certs` lokal |
+
+Bukan duplikasi acak: infra = sumber, staging = tempat `docker compose` jalan.
+
+### Folder yang DIHAPUS saat cleanup
+
+| Path | Alasan |
+|------|--------|
+| `/opt/miru/` | Legacy kosong (`staging/`, `production/` subfolder tanpa isi) |
+| `miru-staging/admin/` | Rsync lama — compose pakai image GHCR |
+| `miru-staging/backend/` | Rsync lama — compose pakai image GHCR |
+| `miru-staging/Caddyfile` | Diganti nginx di compose |
+
+## Rapikan VPS (sekali)
 
 ```bash
-bash /opt/miru-infra/scripts/install-opt-layout.sh
-bash /opt/miru-infra/scripts/sync-staging.sh
+bash /opt/miru-infra/scripts/cleanup-vps.sh
+```
+
+## Setup awal / migrasi
+
+```bash
+sudo git clone -b staging https://github.com/Webekspres/miru-infra.git /opt/miru-infra
+sudo chown -R developer:developer /opt/miru-infra
+bash /opt/miru-infra/scripts/cleanup-vps.sh
 ```
 
 ## Deploy
 
 | Trigger | Repo | Aksi |
 |---------|------|------|
-| Push `staging` | **miru-infra** | git pull `/opt/miru-infra` + sync stack |
-| Push `staging` | **miru-backend-api** | `pull api` saja |
-| Push `staging` | **miru-web-admin** | `pull admin` saja |
+| Push `staging` | **miru-infra** | git pull `/opt/miru-infra` + `sync-staging.sh` |
+| Push `staging` | **miru-backend-api** | `docker compose pull api` di `/opt/miru-staging` |
+| Push `staging` | **miru-web-admin** | `docker compose pull admin` di `/opt/miru-staging` |
 
-Secrets environment `staging`: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY`
+Secrets GitHub environment `staging`: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY`

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Sync staging stack from cloned repo to runtime dir on VPS.
-# Usage (on VPS): bash ~/miru-infra/scripts/sync-staging.sh
+# Sync staging stack: /opt/miru-infra → /opt/miru-staging
 set -euo pipefail
 
-INFRA="${INFRA_DIR:-$HOME/miru-infra}"
+INFRA="${INFRA_DIR:-/opt/miru-infra}"
 TARGET="${TARGET_DIR:-/opt/miru-staging}"
 
 cp "$INFRA/staging/docker-compose.yml" "$TARGET/"

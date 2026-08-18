@@ -8,6 +8,7 @@ on:
     paths:
       - 'staging/**'
       - 'production/**'
+      - 'scripts/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
@@ -30,31 +31,6 @@ jobs:
     env:
       DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Resolve deploy paths
-        id: paths
-        run: |
-          if [ "$DEPLOY_ENV" = "production" ]; then
-            echo "target_dir=/opt/miru-prod" >> "$GITHUB_OUTPUT"
-            echo "source_dir=production" >> "$GITHUB_OUTPUT"
-          else
-            echo "target_dir=/opt/miru-staging" >> "$GITHUB_OUTPUT"
-            echo "source_dir=staging" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Sync stack files to VPS
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          port: ${{ secrets.SSH_PORT || 22022 }}
-          username: ${{ secrets.SSH_USER || 'developer' }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: ${{ steps.paths.outputs.source_dir }}/docker-compose.yml,${{ steps.paths.outputs.source_dir }}/nginx.conf
-          target: ${{ steps.paths.outputs.target_dir }}
-          strip_components: 1
-
       - name: Apply stack on VPS
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -64,14 +40,38 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            TARGET="${{ steps.paths.outputs.target_dir }}"
-            cd "$TARGET"
+            INFRA="/opt/miru-infra"
+            REPO="https://github.com/Webekspres/miru-infra.git"
 
-            echo "==> GHCR login (pull app images if needed)..."
+            if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
+              TARGET="/opt/miru-prod"
+              BRANCH="main"
+              SYNC="scripts/sync-production.sh"
+            else
+              TARGET="/opt/miru-staging"
+              BRANCH="staging"
+              SYNC="scripts/sync-staging.sh"
+            fi
+
+            sudo mkdir -p "$INFRA" "$TARGET"
+            sudo chown -R developer:developer "$INFRA" "$TARGET"
+
+            if [ ! -d "$INFRA/.git" ]; then
+              git clone --branch "$BRANCH" "$REPO" "$INFRA"
+            else
+              cd "$INFRA"
+              git fetch origin
+              git checkout "$BRANCH"
+              git pull origin "$BRANCH"
+            fi
+
+            rm -rf "$HOME/miru-infra" 2>/dev/null || true
+
+            cd "$TARGET"
+            echo "==> GHCR login..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin || true
 
             if [ "${{ env.DEPLOY_ENV }}" = "staging" ]; then
-              echo "==> Ensuring MinIO credentials in .env..."
               touch .env
               grep -q '^MINIO_ROOT_USER=' .env || echo 'MINIO_ROOT_USER=miru_staging' >> .env
               grep -q '^MINIO_ROOT_PASSWORD=' .env || echo "MINIO_ROOT_PASSWORD=$(openssl rand -hex 16)" >> .env
@@ -81,33 +81,23 @@ jobs:
               grep -q '^MINIO_REGION=' .env || echo 'MINIO_REGION=us-east-1' >> .env
             fi
 
-            echo "==> Starting stack at $TARGET ..."
-            docker compose pull api 2>/dev/null || true
-            docker compose up -d
+            bash "$INFRA/$SYNC"
 
-            echo "==> Waiting for MinIO..."
             for i in $(seq 1 30); do
               if docker compose ps minio 2>/dev/null | grep -q '(healthy)'; then
                 echo "MinIO is healthy."
                 break
               fi
-              if [ "$i" -eq 30 ]; then
-                echo "ERROR: MinIO not healthy"
-                docker compose ps
-                docker compose logs minio --tail 30
-                exit 1
-              fi
+              [ "$i" -eq 30 ] && exit 1
               sleep 2
             done
 
-            echo "==> Verifying MinIO from Django..."
             docker compose exec -T api python manage.py shell -c "
             from django.conf import settings
             from api.services.object_storage import ensure_bucket
-            assert settings.MINIO_ENABLED, 'MINIO_ENABLED is False'
+            assert settings.MINIO_ENABLED
             ensure_bucket()
             print('MinIO OK:', settings.MINIO_ENDPOINT, settings.MINIO_BUCKET)
             "
-
             docker compose ps
             echo "==> Infra deploy completed."

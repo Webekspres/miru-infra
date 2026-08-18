@@ -53,17 +53,24 @@ jobs:
               SYNC="scripts/sync-staging.sh"
             fi
 
-            sudo mkdir -p "$INFRA" "$TARGET"
-            sudo chown -R developer:developer "$INFRA" "$TARGET"
-
             if [ ! -d "$INFRA/.git" ]; then
-              git clone --branch "$BRANCH" "$REPO" "$INFRA"
-            else
-              cd "$INFRA"
-              git fetch origin
-              git checkout "$BRANCH"
-              git pull origin "$BRANCH"
+              echo "ERROR: $INFRA belum ada. Setup sekali di VPS (butuh sudo interaktif):"
+              echo "  sudo git clone -b $BRANCH $REPO $INFRA"
+              echo "  sudo mkdir -p $TARGET/certs"
+              echo "  sudo chown -R developer:developer $INFRA $TARGET"
+              exit 1
             fi
+
+            if [ ! -d "$TARGET" ]; then
+              echo "ERROR: $TARGET belum ada. Jalankan:"
+              echo "  sudo mkdir -p $TARGET/certs && sudo chown -R developer:developer $TARGET"
+              exit 1
+            fi
+
+            cd "$INFRA"
+            git fetch origin
+            git checkout "$BRANCH"
+            git pull origin "$BRANCH"
 
             rm -rf "$HOME/miru-infra" 2>/dev/null || true
 

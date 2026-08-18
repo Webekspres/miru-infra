@@ -2,6 +2,8 @@
 
 Infrastruktur deploy VPS untuk MIRU Bank Sampah.
 
+**Clone lokal (monorepo MIRU):** `miru/miru-infra/` — jangan pindah ke path lain; repo GitHub terpisah `Webekspres/miru-infra`.
+
 ## Layout VPS (`/opt`) — setelah rapi
 
 ```
@@ -70,3 +72,5 @@ bash /opt/miru-infra/scripts/cleanup-vps.sh
 | Push `staging` | **miru-web-admin** | `docker compose pull admin` di `/opt/miru-staging` |
 
 Secrets GitHub environment `staging`: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY`
+
+CI deploy **tanpa sudo** — user SSH (`developer`) harus sudah punya ownership `/opt/miru-infra` dan `/opt/miru-staging` (setup sekali manual di atas).

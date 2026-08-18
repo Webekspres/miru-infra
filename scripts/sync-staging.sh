@@ -10,8 +10,6 @@ cp "$INFRA/staging/nginx.conf" "$TARGET/"
 
 cd "$TARGET"
 docker compose up -d
-if docker compose ps nginx --status running >/dev/null 2>&1; then
-  docker compose exec -T nginx nginx -t
-  docker compose exec -T nginx nginx -s reload
-fi
+# Bind-mount config: recreate nginx agar config baru pasti terbaca (reload saja kadang tidak cukup).
+docker compose up -d --force-recreate nginx
 docker compose ps

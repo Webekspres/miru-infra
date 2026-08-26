@@ -86,6 +86,11 @@ jobs:
               grep -q '^MINIO_SECRET_KEY=' .env || echo "MINIO_SECRET_KEY=$(grep '^MINIO_ROOT_PASSWORD=' .env | cut -d= -f2-)" >> .env
               grep -q '^MINIO_BUCKET=' .env || echo 'MINIO_BUCKET=mirubanksampah' >> .env
               grep -q '^MINIO_REGION=' .env || echo 'MINIO_REGION=us-east-1' >> .env
+              if grep -q '^SKIP_PHONE_VERIFICATION=' .env; then
+                sed -i 's/^SKIP_PHONE_VERIFICATION=.*/SKIP_PHONE_VERIFICATION=True/' .env
+              else
+                echo 'SKIP_PHONE_VERIFICATION=True' >> .env
+              fi
             fi
 
             bash "$INFRA/$SYNC"

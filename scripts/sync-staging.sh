@@ -10,6 +10,6 @@ cp "$INFRA/staging/nginx.conf" "$TARGET/"
 
 cd "$TARGET"
 docker compose up -d
-# Bind-mount config: recreate nginx agar config baru pasti terbaca (reload saja kadang tidak cukup).
-docker compose up -d --force-recreate nginx
+# Recreate api/nginx agar env/compose baru pasti terbaca.
+docker compose up -d --force-recreate api nginx
 docker compose ps

@@ -61,6 +61,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
       MINIO_BUCKET: ${MINIO_BUCKET:-mirubanksampah}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      # Staging: lewati OTP WA sampai gateway siap (override .env jika kosong)
+      SKIP_PHONE_VERIFICATION: ${SKIP_PHONE_VERIFICATION:-True}
     depends_on:
       db:
         condition: service_healthy

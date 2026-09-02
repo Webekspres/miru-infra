@@ -1,0 +1,66 @@
+# Dev infra only — PostgreSQL + MinIO (bucket init).
+# Jalankan backend/web/mobile di host (venv / bun / flutter).
+#
+#   cd infra/dev && podman compose up -d
+#   cd infra/dev && podman compose down
+#
+# Backend .env: DB_HOST=127.0.0.1, MINIO_ENDPOINT=http://localhost:9000
+
+services:
+  db:
+    image: docker.io/library/postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-miru}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - miru_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-miru}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio:
+    image: docker.io/minio/minio:RELEASE.2025-07-23T15-54-02Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miru_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+  minio-init:
+    image: docker.io/minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-mirubanksampah}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb -p "local/$$MINIO_BUCKET" 2>/dev/null || true
+        mc anonymous set download "local/$$MINIO_BUCKET"
+        echo "MinIO bucket $$MINIO_BUCKET siap (public download)."
+
+volumes:
+  miru_postgres_data:
+  miru_minio_data:

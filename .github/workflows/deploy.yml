@@ -86,11 +86,13 @@ jobs:
               grep -q '^MINIO_SECRET_KEY=' .env || echo "MINIO_SECRET_KEY=$(grep '^MINIO_ROOT_PASSWORD=' .env | cut -d= -f2-)" >> .env
               grep -q '^MINIO_BUCKET=' .env || echo 'MINIO_BUCKET=mirubanksampah' >> .env
               grep -q '^MINIO_REGION=' .env || echo 'MINIO_REGION=us-east-1' >> .env
-              if grep -q '^SKIP_PHONE_VERIFICATION=' .env; then
-                sed -i 's/^SKIP_PHONE_VERIFICATION=.*/SKIP_PHONE_VERIFICATION=True/' .env
-              else
-                echo 'SKIP_PHONE_VERIFICATION=True' >> .env
-              fi
+              # Hanya set default jika belum ada — jangan timpa nilai yang
+              # sudah dikonfigurasi operator secara manual (mis. dimatikan
+              # setelah WA gateway production siap).
+              grep -q '^SKIP_PHONE_VERIFICATION=' .env || echo 'SKIP_PHONE_VERIFICATION=True' >> .env
+              # Cookie auth web admin lintas subdomain (api.dev.* <-> dev.*):
+              # apex WAJIB supaya HttpOnly cookie sampai ke panel admin.
+              grep -q '^COOKIE_DOMAIN=' .env || echo 'COOKIE_DOMAIN=dev.mirubanksampah.id' >> .env
             fi
 
             bash "$INFRA/$SYNC"

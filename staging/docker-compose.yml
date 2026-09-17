@@ -42,18 +42,40 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-mirubanksampah}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
         mc mb -p "local/$$MINIO_BUCKET" || true
-        mc anonymous set download "local/$$MINIO_BUCKET"
-        echo "MinIO bucket $$MINIO_BUCKET siap (public download)."
+        mc anonymous set download "local/$$MINIO_BUCKET/edukasi" || true
+        mc anonymous set download "local/$$MINIO_BUCKET/avatar" || true
+        mc anonymous set download "local/$$MINIO_BUCKET/konten" || true
+        echo "MinIO bucket $$MINIO_BUCKET siap (scoped public prefixes: edukasi, avatar, konten)."
+
+        if [ "$$MINIO_ACCESS_KEY" != "$$MINIO_ROOT_USER" ] && [ -n "$$MINIO_ACCESS_KEY" ]; then
+          mc admin user add local "$$MINIO_ACCESS_KEY" "$$MINIO_SECRET_KEY"
+          printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:ListBucket"],"Resource":["arn:aws:s3:::%s","arn:aws:s3:::%s/*"]}]}' "$$MINIO_BUCKET" "$$MINIO_BUCKET" > /tmp/miru-app-policy.json
+          mc admin policy create local miru-app-policy /tmp/miru-app-policy.json
+          mc admin policy attach local miru-app-policy --user "$$MINIO_ACCESS_KEY"
+          echo "User aplikasi $$MINIO_ACCESS_KEY dibatasi ke bucket $$MINIO_BUCKET (least-privilege, bukan root)."
+        else
+          echo "WARNING: MINIO_ACCESS_KEY belum diset terpisah dari MINIO_ROOT_USER di .env -- aplikasi memakai kredensial root MinIO. Set MINIO_ACCESS_KEY/MINIO_SECRET_KEY terpisah untuk least-privilege."
+        fi
 
   api:
-    image: ghcr.io/webekspres/miru-backend-api:staging
+    image: ghcr.io/webekspres/miru-backend-api:${API_IMAGE_TAG:-staging}
     restart: unless-stopped
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput --clear &&
+             gunicorn core.wsgi:application
+               --bind 0.0.0.0:8000
+               --workers ${GUNICORN_WORKERS:-4}
+               --timeout 120
+               --access-logfile -
+               --error-logfile -"
     env_file: .env
     environment:
       MINIO_ENDPOINT: http://minio:9000
@@ -70,7 +92,7 @@ services:
         condition: service_completed_successfully
 
   admin:
-    image: ghcr.io/webekspres/miru-web-admin:staging
+    image: ghcr.io/webekspres/miru-web-admin:${ADMIN_IMAGE_TAG:-staging}
     restart: unless-stopped
     environment:
       NODE_ENV: production

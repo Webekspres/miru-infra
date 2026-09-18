@@ -9,6 +9,13 @@ cp "$INFRA/production/docker-compose.yml" "$TARGET/"
 cp "$INFRA/production/nginx.conf" "$TARGET/"
 
 cd "$TARGET"
-docker compose up -d
-docker compose up -d --force-recreate nginx
+
+# Infra owns the shared services (db, minio, nginx) whose images are public.
+# Application images (api, admin) live in per-repo GHCR packages that this
+# workflow's GITHUB_TOKEN cannot pull cross-repo; they are deployed by their
+# own CI/CD pipelines. Only bring up infra-owned services and reload nginx.
+docker compose up -d db minio minio-init
+
+docker compose up -d --no-deps --force-recreate nginx
+
 docker compose ps

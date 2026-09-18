@@ -1,69 +1,76 @@
 # MIRU Infra
 
-Infrastruktur deploy VPS untuk ekosistem MIRU Bank Sampah — Docker Compose, nginx, MinIO, PostgreSQL.
+Infrastruktur deploy VPS untuk MIRU Bank Sampah.
 
-Aplikasi (`miru-backend-api`, `miru-web-admin`, `mirumobileapp`) **tidak** disimpan di sini; stack ini menarik image dari GHCR.
+**Clone lokal (monorepo MIRU):** `miru/miru-infra/` — jangan pindah ke path lain; repo GitHub terpisah `Webekspres/miru-infra`.
 
-## Layout
+## Layout VPS (`/opt`) — setelah rapi
 
-| Path | Deploy target VPS | Isi |
-|------|-------------------|-----|
-| `staging/` | `/opt/miru-staging` | Compose staging + nginx |
-| `production/` | `/opt/miru-prod` | Compose production + nginx |
-
-File `.env` dan `certs/` **tidak** di-repo — tetap di VPS.
-
-## Staging
-
-Services: `db`, `minio`, `minio-init`, `api`, `admin`, `nginx`
-
-| Host | Service |
-|------|---------|
-| `dev.mirubanksampah.id` | web-admin |
-| `api.dev.mirubanksampah.id` | backend API + `/objects/` → MinIO |
-
-### Setup awal VPS
-
-```bash
-sudo mkdir -p /opt/miru-staging/certs
-sudo chown -R developer:developer /opt/miru-staging
-cd /opt/miru-staging
-# Salin .env dari template, isi DB_* dan SECRET_KEY
-cp /path/to/staging/.env.example .env
-chmod 600 .env
-# Letakkan sertifikat TLS di certs/live/dev.mirubanksampah.id/
+```
+/opt/
+├── miru-infra/                 ← git clone (SATU-SATUNYA sumber compose/nginx)
+│   ├── staging/
+│   │   ├── docker-compose.yml  ← template staging
+│   │   ├── nginx.conf
+│   │   └── env.example
+│   ├── production/
+│   └── scripts/
+│       ├── sync-staging.sh     ← copy template → runtime
+│       ├── sync-production.sh
+│       ├── install-opt-layout.sh
+│       └── cleanup-vps.sh      ← hapus legacy, rapikan VPS
+│
+├── miru-staging/               ← runtime staging (docker compose dijalankan DI SINI)
+│   ├── docker-compose.yml      ← disalin dari miru-infra/staging/
+│   ├── nginx.conf
+│   ├── .env                    ← secrets (tidak di git)
+│   └── certs/                  ← TLS (tidak di git)
+│
+└── miru-prod/                  ← runtime production (nanti)
+    ├── .env
+    └── certs/
 ```
 
-### Deploy manual
+### Kenapa compose ada di dua tempat?
+
+| Lokasi | Peran |
+|--------|-------|
+| `miru-infra/staging/` | **Template** di git — diedit developer, di-deploy via CI |
+| `miru-staging/` | **Runtime** — disalin otomatis + `.env`/`certs` lokal |
+
+Bukan duplikasi acak: infra = sumber, staging = tempat `docker compose` jalan.
+
+### Folder yang DIHAPUS saat cleanup
+
+| Path | Alasan |
+|------|--------|
+| `/opt/miru/` | Legacy kosong (`staging/`, `production/` subfolder tanpa isi) |
+| `miru-staging/admin/` | Rsync lama — compose pakai image GHCR |
+| `miru-staging/backend/` | Rsync lama — compose pakai image GHCR |
+| `miru-staging/Caddyfile` | Diganti nginx di compose |
+
+## Rapikan VPS (sekali)
 
 ```bash
-cd /opt/miru-staging
-docker compose pull api   # opsional — admin image harus sudah ada di server
-docker compose up -d
+bash /opt/miru-infra/scripts/cleanup-vps.sh
 ```
 
-### Deploy otomatis (CI)
+## Setup awal / migrasi
 
-Push ke branch `staging` → workflow sync `staging/*` ke VPS dan `docker compose up -d`.
+```bash
+sudo git clone -b staging https://github.com/Webekspres/miru-infra.git /opt/miru-infra
+sudo chown -R developer:developer /opt/miru-infra
+bash /opt/miru-infra/scripts/cleanup-vps.sh
+```
 
-GitHub Environment **`staging`** membutuhkan secrets (sama seperti backend dulu):
+## Deploy
 
-- `SSH_HOST`
-- `SSH_PORT` (opsional, default 22022)
-- `SSH_USER` (opsional, default `developer`)
-- `SSH_PRIVATE_KEY`
+| Trigger | Repo | Aksi |
+|---------|------|------|
+| Push `staging` | **miru-infra** | git pull `/opt/miru-infra` + `sync-staging.sh` |
+| Push `staging` | **miru-backend-api** | `docker compose pull api` di `/opt/miru-staging` |
+| Push `staging` | **miru-web-admin** | `docker compose pull admin` di `/opt/miru-staging` |
 
-## Production
+Secrets GitHub environment `staging`: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY`
 
-Push ke branch `main` → deploy ke `/opt/miru-prod` (environment **`production`**).
-
-## Hubungan dengan repo aplikasi
-
-| Repo | Tanggung jawab deploy |
-|------|------------------------|
-| **miru-infra** (ini) | Stack: db, minio, nginx, compose — `docker compose up -d` |
-| **miru-backend-api** | Build image → GHCR → `docker compose pull api && up -d api` |
-| **miru-web-admin** | Build image → GHCR → `docker compose pull admin && up -d admin` |
-
-Ubah nginx, MinIO, atau Postgres → **miru-infra**.  
-Rilis kode API/admin → repo masing-masing.
+CI deploy **tanpa sudo** — user SSH (`developer`) harus sudah punya ownership `/opt/miru-infra` dan `/opt/miru-staging` (setup sekali manual di atas).

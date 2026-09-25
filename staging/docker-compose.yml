@@ -67,15 +67,13 @@ services:
   api:
     image: ghcr.io/webekspres/miru-backend-api:${API_IMAGE_TAG:-staging}
     restart: unless-stopped
-    command: >
+    # Satu baris per opsi gunicorn akan pecah jadi command terpisah di
+    # folded scalar (baris lebih menjorok dipertahankan sebagai newline).
+    command: >-
       sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput --clear &&
-             gunicorn core.wsgi:application
-               --bind 0.0.0.0:8000
-               --workers ${GUNICORN_WORKERS:-4}
-               --timeout 120
-               --access-logfile -
-               --error-logfile -"
+      exec gunicorn core.wsgi:application --bind 0.0.0.0:8000
+      --workers ${GUNICORN_WORKERS:-4} --timeout 120
+      --access-logfile - --error-logfile -"
     env_file: .env
     environment:
       MINIO_ENDPOINT: http://minio:9000

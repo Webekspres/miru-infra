@@ -1,5 +1,5 @@
 # Staging stack — deploy target: /opt/miru-staging
-# Managed by Webekspres/miru-infra
+# Managed by Webekspres/miru-infra — lalu lintas masuk lewat edge proxy (edge/)
 services:
   db:
     image: postgres:15
@@ -88,6 +88,10 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+    networks:
+      default:
+      edge:
+        aliases: [staging-api]
 
   admin:
     image: ghcr.io/webekspres/miru-web-admin:${ADMIN_IMAGE_TAG:-staging}
@@ -96,21 +100,18 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./certs:/etc/nginx/certs:ro
-    depends_on:
-      - api
-      - admin
-      - minio
+    networks:
+      default:
+      edge:
+        aliases: [staging-admin]
 
 volumes:
   postgres_data:
   minio_data:
+
+# Jaringan bersama dengan edge proxy (~developer/miru-edge) — nginx di sana yang
+# memegang port 80/443 dan meneruskan ke alias di atas.
+networks:
+  edge:
+    external: true
+    name: miru-edge

@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
-# Sync staging stack: /opt/miru-infra → /opt/miru-staging
+# Sync staging stack: /opt/miru-infra → /opt/miru-staging, lalu edge proxy.
 set -euo pipefail
 
 INFRA="${INFRA_DIR:-/opt/miru-infra}"
 TARGET="${TARGET_DIR:-/opt/miru-staging}"
 
 cp "$INFRA/staging/docker-compose.yml" "$TARGET/"
-cp "$INFRA/staging/nginx.conf" "$TARGET/"
+rm -f "$TARGET/nginx.conf"  # nginx per-stack diganti edge proxy
 
 cd "$TARGET"
+docker network inspect miru-edge >/dev/null 2>&1 || docker network create miru-edge
 
-# Infra owns the shared services (db, minio, nginx) whose images are public
-# and always pullable. The application images (api, admin) live in per-repo
-# GHCR packages that this workflow's GITHUB_TOKEN cannot pull cross-repo, and
-# they are already published+deployed by their own CI/CD pipelines. So we only
-# bring up infra-owned services here and reload nginx — a blanket
-# `docker compose up -d` would try to (re)pull api/admin and fail with
-# "denied". api/admin pick up any compose changes on their next app deploy.
-docker compose up -d db minio minio-init
+# Infra memegang layanan ber-image publik (db, minio). Image aplikasi (api,
+# admin) ada di GHCR per repo yang tidak bisa di-pull token workflow ini —
+# dideploy pipeline masing-masing. --remove-orphans melepas nginx lama stack
+# ini (port 80/443 kini dipegang edge proxy).
+docker compose up -d --remove-orphans db minio minio-init
 
-# Apply the freshly-copied nginx.conf without recreating the app services.
-docker compose up -d --no-deps --force-recreate nginx
+# api/admin bergabung ke jaringan miru-edge memakai image yang sudah ada di
+# server (tanpa pull). Belum ada image → tunggu deploy CI aplikasi.
+docker compose up -d --no-deps --pull never api admin \
+  || echo "api/admin belum punya image di server — akan naik saat deploy CI."
 
+bash "$INFRA/scripts/sync-edge.sh"
 docker compose ps

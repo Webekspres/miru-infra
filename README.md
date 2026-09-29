@@ -4,31 +4,50 @@ Infrastruktur deploy VPS untuk MIRU Bank Sampah.
 
 **Clone lokal (monorepo MIRU):** `miru/miru-infra/` — jangan pindah ke path lain; repo GitHub terpisah `Webekspres/miru-infra`.
 
-## Layout VPS (`/opt`) — setelah rapi
+## Layout VPS (`/opt`)
 
 ```
 /opt/
-├── miru-infra/                 ← git clone (SATU-SATUNYA sumber compose/nginx)
-│   ├── staging/
-│   │   ├── docker-compose.yml  ← template staging
-│   │   ├── nginx.conf
-│   │   └── env.example
-│   ├── production/
+├── miru-infra/                 ← git clone (sumber compose/nginx/script)
+│   ├── edge/                   ← proxy edge: docker-compose + conf.d + production.conf
+│   ├── staging/                ← template stack staging
+│   ├── production/             ← template stack production
 │   └── scripts/
-│       ├── sync-staging.sh     ← copy template → runtime
+│       ├── sync-staging.sh     ← salin template → runtime, lalu sync-edge
 │       ├── sync-production.sh
-│       ├── install-opt-layout.sh
-│       └── cleanup-vps.sh      ← hapus legacy, rapikan VPS
+│       ├── sync-edge.sh        ← pasang/muat ulang proxy edge
+│       ├── edge-certs.sh       ← Let's Encrypt (webroot) + cron perpanjangan
+│       └── install-cron.sh
 │
-├── miru-staging/               ← runtime staging (docker compose dijalankan DI SINI)
-│   ├── docker-compose.yml      ← disalin dari miru-infra/staging/
-│   ├── nginx.conf
-│   ├── .env                    ← secrets (tidak di git)
-│   └── certs/                  ← TLS (tidak di git)
-│
-└── miru-prod/                  ← runtime production (nanti)
-    ├── .env
-    └── certs/
+~developer/miru-edge/           ← runtime proxy edge (SATU-SATUNYA pemegang port 80/443;
+│                                  di home user deploy karena /opt butuh sudo)
+│   ├── conf.d/                 ← disalin dari miru-infra/edge/
+│   ├── certs/                  ← data certbot; current/{staging,production} → sertifikat aktif
+│   └── webroot/                ← tantangan ACME
+├── miru-staging/               ← runtime staging: .env + db/minio/api/admin
+└── miru-prod/                  ← runtime production: .env + db/minio/api/admin
+```
+
+### Proxy edge
+
+Satu nginx di `~developer/miru-edge` meneruskan per host lewat jaringan Docker
+`miru-edge` (alias `staging-api`, `staging-admin`, `prod-api`, `prod-admin`).
+Database & MinIO tiap stack tetap terpisah dan tidak masuk jaringan edge.
+
+| Host | Tujuan |
+|------|--------|
+| `dev.mirubanksampah.id` | staging web |
+| `api.dev.mirubanksampah.id` | staging API |
+| `mirubanksampah.id` | production web; `/api/` & `/objects/` → API (cookie host-only) |
+| `www.mirubanksampah.id` | redirect → `mirubanksampah.id` |
+| `api.mirubanksampah.id` | production API (aplikasi mobile) |
+
+Sertifikat (sekali, lalu otomatis diperpanjang):
+
+```bash
+bash /opt/miru-infra/scripts/edge-certs.sh staging
+bash /opt/miru-infra/scripts/edge-certs.sh production && bash /opt/miru-infra/scripts/sync-edge.sh
+bash /opt/miru-infra/scripts/edge-certs.sh install-cron
 ```
 
 ### Kenapa compose ada di dua tempat?
@@ -53,6 +72,16 @@ Bukan duplikasi acak: infra = sumber, staging = tempat `docker compose` jalan.
 
 ```bash
 bash /opt/miru-infra/scripts/cleanup-vps.sh
+```
+
+## Cron harian (sekali per environment)
+
+Hapus pendaftaran nasabah yang tidak memverifikasi email dalam 24 jam
+(02.30 waktu server, log di `<env>/logs/cron.log`). Aman dijalankan ulang.
+
+```bash
+bash /opt/miru-infra/scripts/install-cron.sh staging
+bash /opt/miru-infra/scripts/install-cron.sh production   # setelah prod siap
 ```
 
 ## Setup awal / migrasi

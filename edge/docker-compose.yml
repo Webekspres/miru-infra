@@ -18,6 +18,8 @@ services:
     networks:
       - edge
 
+# Dibuat scripts/sync-edge.sh (dipakai juga oleh stack staging & prod).
 networks:
   edge:
+    external: true
     name: miru-edge

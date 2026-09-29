@@ -109,7 +109,7 @@ volumes:
   postgres_data:
   minio_data:
 
-# Jaringan bersama dengan edge proxy (/opt/miru-edge) — nginx di sana yang
+# Jaringan bersama dengan edge proxy (~developer/miru-edge) — nginx di sana yang
 # memegang port 80/443 dan meneruskan ke alias di atas.
 networks:
   edge:

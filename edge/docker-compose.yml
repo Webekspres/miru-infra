@@ -1,4 +1,4 @@
-# Edge proxy — satu-satunya pemegang port 80/443 di VPS (target: /opt/miru-edge).
+# Edge proxy — satu-satunya pemegang port 80/443 di VPS (target: ~/miru-edge milik user deploy).
 # Meneruskan per host ke stack staging (/opt/miru-staging) dan production
 # (/opt/miru-prod) lewat jaringan bersama `miru-edge`; masing-masing stack
 # tetap punya database & penyimpanan sendiri.

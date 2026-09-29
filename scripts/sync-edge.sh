@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync edge proxy: /opt/miru-infra/edge → /opt/miru-edge (aman dijalankan ulang).
+# Sync edge proxy: /opt/miru-infra/edge → ~/miru-edge (user deploy; /opt tidak bisa ditulis tanpa sudo) (aman dijalankan ulang).
 #
 # - Jaringan `miru-edge` dibuat bila belum ada (dipakai stack staging & prod).
 # - Sertifikat dibaca nginx lewat symlink stabil certs/current/{staging,production}.
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 INFRA="${INFRA_DIR:-/opt/miru-infra}"
-EDGE="${EDGE_DIR:-/opt/miru-edge}"
+EDGE="${EDGE_DIR:-$HOME/miru-edge}"
 LEGACY_STAGING_CERT=/opt/miru-staging/certs/live/dev.mirubanksampah.id
 
 mkdir -p "$EDGE/conf.d" "$EDGE/certs/current" "$EDGE/webroot"

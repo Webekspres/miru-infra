@@ -19,7 +19,8 @@ Infrastruktur deploy VPS untuk MIRU Bank Sampah.
 │       ├── edge-certs.sh       ← Let's Encrypt (webroot) + cron perpanjangan
 │       └── install-cron.sh
 │
-├── miru-edge/                  ← runtime proxy edge (SATU-SATUNYA pemegang port 80/443)
+~developer/miru-edge/           ← runtime proxy edge (SATU-SATUNYA pemegang port 80/443;
+│                                  di home user deploy karena /opt butuh sudo)
 │   ├── conf.d/                 ← disalin dari miru-infra/edge/
 │   ├── certs/                  ← data certbot; current/{staging,production} → sertifikat aktif
 │   └── webroot/                ← tantangan ACME
@@ -29,7 +30,7 @@ Infrastruktur deploy VPS untuk MIRU Bank Sampah.
 
 ### Proxy edge
 
-Satu nginx di `/opt/miru-edge` meneruskan per host lewat jaringan Docker
+Satu nginx di `~developer/miru-edge` meneruskan per host lewat jaringan Docker
 `miru-edge` (alias `staging-api`, `staging-admin`, `prod-api`, `prod-admin`).
 Database & MinIO tiap stack tetap terpisah dan tidak masuk jaringan edge.
 

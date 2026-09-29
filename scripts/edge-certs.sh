@@ -5,11 +5,11 @@
 #   scripts/edge-certs.sh production    mirubanksampah.id, www., api.
 #   scripts/edge-certs.sh install-cron  perpanjangan otomatis harian (03.15)
 #
-# Berjalan sebagai user biasa: data certbot di /opt/miru-edge/certs (config),
+# Berjalan sebagai user biasa: data certbot di ~/miru-edge/certs (config),
 # bukan /etc/letsencrypt. Setelah terbit/diperpanjang, nginx di-reload.
 set -euo pipefail
 
-EDGE="${EDGE_DIR:-/opt/miru-edge}"
+EDGE="${EDGE_DIR:-$HOME/miru-edge}"
 EMAIL="${LE_EMAIL:-admin@mirubanksampah.id}"
 CERTBOT_DIRS=(--config-dir "$EDGE/certs" --work-dir "$EDGE/.certbot/work" --logs-dir "$EDGE/.certbot/logs")
 RELOAD="docker compose -f $EDGE/docker-compose.yml exec -T nginx nginx -s reload"

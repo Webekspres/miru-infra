@@ -6,6 +6,7 @@ on:
       - staging
       - main
     paths:
+      - 'edge/**'
       - 'staging/**'
       - 'production/**'
       - 'scripts/**'
@@ -40,14 +41,18 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            INFRA="/opt/miru-infra"
             REPO="https://github.com/Webekspres/miru-infra.git"
 
+            # Clone terpisah per environment: checkout `main` untuk production
+            # tidak boleh mengganti branch clone staging (dan sebaliknya).
             if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
+              INFRA="$HOME/miru-infra-main"
               TARGET="/opt/miru-prod"
               BRANCH="main"
               SYNC="scripts/sync-production.sh"
+              [ -d "$INFRA/.git" ] || git clone -q -b main "$REPO" "$INFRA"
             else
+              INFRA="/opt/miru-infra"
               TARGET="/opt/miru-staging"
               BRANCH="staging"
               SYNC="scripts/sync-staging.sh"
@@ -95,7 +100,7 @@ jobs:
               grep -q '^COOKIE_DOMAIN=' .env || echo 'COOKIE_DOMAIN=dev.mirubanksampah.id' >> .env
             fi
 
-            bash "$INFRA/$SYNC"
+            INFRA_DIR="$INFRA" bash "$INFRA/$SYNC"
 
             for i in $(seq 1 30); do
               if docker compose ps minio 2>/dev/null | grep -q '(healthy)'; then

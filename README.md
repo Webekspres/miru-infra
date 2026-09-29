@@ -74,6 +74,18 @@ Bukan duplikasi acak: infra = sumber, staging = tempat `docker compose` jalan.
 bash /opt/miru-infra/scripts/cleanup-vps.sh
 ```
 
+## Backup (sekali per environment)
+
+Harian 02.00: dump Postgres + objek MinIO, terenkripsi GPG AES-256, disimpan di
+`~developer/miru-backups/<env>/` (harian 14 hari, mingguan 90 hari). Dump DB
+diverifikasi setiap kali backup. Passphrase: `~developer/miru-backups/.passphrase`
+— **simpan salinannya di luar VPS**. Cara pulih ada di kepala `scripts/backup.sh`.
+
+```bash
+bash ~/miru-infra-main/scripts/backup.sh production install-cron
+bash /opt/miru-infra/scripts/backup.sh staging install-cron
+```
+
 ## Cron harian (sekali per environment)
 
 Hapus pendaftaran nasabah yang tidak memverifikasi email dalam 24 jam

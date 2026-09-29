@@ -55,6 +55,16 @@ Bukan duplikasi acak: infra = sumber, staging = tempat `docker compose` jalan.
 bash /opt/miru-infra/scripts/cleanup-vps.sh
 ```
 
+## Cron harian (sekali per environment)
+
+Hapus pendaftaran nasabah yang tidak memverifikasi email dalam 24 jam
+(02.30 waktu server, log di `<env>/logs/cron.log`). Aman dijalankan ulang.
+
+```bash
+bash /opt/miru-infra/scripts/install-cron.sh staging
+bash /opt/miru-infra/scripts/install-cron.sh production   # setelah prod siap
+```
+
 ## Setup awal / migrasi
 
 ```bash

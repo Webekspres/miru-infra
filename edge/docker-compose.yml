@@ -1,0 +1,23 @@
+# Edge proxy — satu-satunya pemegang port 80/443 di VPS (target: /opt/miru-edge).
+# Meneruskan per host ke stack staging (/opt/miru-staging) dan production
+# (/opt/miru-prod) lewat jaringan bersama `miru-edge`; masing-masing stack
+# tetap punya database & penyimpanan sendiri.
+# Sertifikat: Let's Encrypt mode webroot (scripts/edge-certs.sh), diperpanjang
+# otomatis tanpa menghentikan nginx.
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./webroot:/var/www/acme:ro
+    networks:
+      - edge
+
+networks:
+  edge:
+    name: miru-edge

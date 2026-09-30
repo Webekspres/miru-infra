@@ -1,0 +1,49 @@
+name: Deploy infra (production)
+
+# Satu branch (main). Folder production/ milik production; edge/ & scripts/ dipakai
+# bersama sehingga ikut memicu kedua environment.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'production/**'
+      - 'edge/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-deploy  # staging & production berbagi VPS & proxy edge
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Apply stack on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT || 22022 }}
+          username: ${{ secrets.SSH_USER || 'developer' }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 20m
+          script: |
+            set -e
+            INFRA=/opt/miru-infra
+            if [ ! -d "$INFRA/.git" ]; then
+              echo "ERROR: $INFRA belum ada. Sekali (butuh sudo):"
+              echo "  sudo git clone -b main https://github.com/Webekspres/miru-infra.git $INFRA"
+              echo "  sudo chown -R developer:developer $INFRA"
+              exit 1
+            fi
+            cd "$INFRA"
+            git fetch -q origin main
+            git checkout -q main
+            git reset -q --hard origin/main
+            bash scripts/deploy.sh production

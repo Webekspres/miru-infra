@@ -82,7 +82,7 @@ diverifikasi setiap kali backup. Passphrase: `~developer/miru-backups/.passphras
 — **simpan salinannya di luar VPS**. Cara pulih ada di kepala `scripts/backup.sh`.
 
 ```bash
-bash ~/miru-infra-main/scripts/backup.sh production install-cron
+bash /opt/miru-infra/scripts/backup.sh production install-cron
 bash /opt/miru-infra/scripts/backup.sh staging install-cron
 ```
 
@@ -99,19 +99,28 @@ bash /opt/miru-infra/scripts/install-cron.sh production   # setelah prod siap
 ## Setup awal / migrasi
 
 ```bash
-sudo git clone -b staging https://github.com/Webekspres/miru-infra.git /opt/miru-infra
+sudo git clone -b main https://github.com/Webekspres/miru-infra.git /opt/miru-infra
 sudo chown -R developer:developer /opt/miru-infra
 bash /opt/miru-infra/scripts/cleanup-vps.sh
 ```
 
 ## Deploy
 
-| Trigger | Repo | Aksi |
-|---------|------|------|
-| Push `staging` | **miru-infra** | git pull `/opt/miru-infra` + `sync-staging.sh` |
-| Push `staging` | **miru-backend-api** | `docker compose pull api` di `/opt/miru-staging` |
-| Push `staging` | **miru-web-admin** | `docker compose pull admin` di `/opt/miru-staging` |
+Repo ini **satu branch: `main`**. Pengaturan tiap environment ada di foldernya
+sendiri, jadi workflow dipicu per folder:
 
-Secrets GitHub environment `staging`: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY`
+| Perubahan di | Workflow | Aksi di VPS |
+|--------------|----------|-------------|
+| `staging/**` | *Deploy infra (staging)* | `scripts/deploy.sh staging` → `/opt/miru-staging` |
+| `production/**` | *Deploy infra (production)* | `scripts/deploy.sh production` → `/opt/miru-prod` |
+| `edge/**`, `scripts/**` | keduanya | proxy edge & script bersama |
+
+Keduanya juga bisa dijalankan manual (Actions → *Run workflow*). Di VPS hanya
+ada satu clone: `/opt/miru-infra` (branch `main`).
+
+Aplikasi punya pipeline sendiri: push `staging`/`main` di **miru-backend-api**
+dan **miru-web-admin** men-deploy image ke `/opt/miru-staging` / `/opt/miru-prod`.
+
+Secrets GitHub environment `staging` & `production`: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY`
 
 CI deploy **tanpa sudo** — user SSH (`developer`) harus sudah punya ownership `/opt/miru-infra` dan `/opt/miru-staging` (setup sekali manual di atas).
